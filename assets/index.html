@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="light">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Local code review</title>
+  <link rel="stylesheet" href="/vendor.css"><link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+<header><div class="brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 3H4v18h16V3h-4M9 3h6v4H9zM8 12h8m-8 4h5"/></svg><span>Local review <span class="muted" id="repo-name"></span></span></div><span class="pill" id="connection">Private session</span></header>
+<section class="intro">
+  <div class="headline"><div><h1>Review your changes</h1><p class="muted">Baca diff, tulis komentar, lalu kirim review ke agent sekaligus.</p></div><button class="btn submit finish" disabled>Review changes <span class="comment-count">0</span></button></div>
+  <div class="toolbar"><span id="comparison"></span><code id="base"></code><span>→</span><code id="head"></code><span class="snapshot" id="snapshot-label"></span></div>
+  <details class="agent-summary" open><summary>Summary of changes <span class="agent-byline">Penjelasan agent</span></summary><div id="overall-summary" class="prose-text"></div></details>
+</section>
+<div class="layout">
+  <aside><div class="side-title"><span>Changed files</span><span id="file-count">0</span></div><nav id="files" aria-label="Changed files"></nav><p class="aside-note">Klik baris awal lalu klik baris akhir. Klik ulang untuk melepas baris itu saja. Tanpa Shift atau mode tambahan.<br><br>Draft belum dikirim ke agent sampai lo klik <strong>Submit review</strong>.</p></aside>
+  <main id="workspace">
+    <div id="error" role="alert" class="notice error hidden"></div>
+    <div id="loading" class="notice">Memuat snapshot…</div>
+    <section id="file-view" class="hidden">
+      <div class="diff-tools"><span id="file-position"></span><span class="stats" id="stats"></span></div>
+      <section class="code-diff"><div class="diff-title"><strong id="filename"></strong><label class="viewed"><input type="checkbox" id="viewed">Viewed</label></div>
+        <div id="range-toolbar" class="range-toolbar"><span id="range-selection" role="status" aria-live="polite">Klik baris awal lalu akhir untuk memilih.</span><button class="btn" id="comment-range" disabled>+ Comment on selection</button><button class="btn" id="clear-range" disabled>Clear</button></div>
+        <div id="lines" class="code-scroll"></div>
+      </section>
+      <p class="empty-note">Klik baris awal lalu baris akhir untuk memilih rentang. Klik ulang untuk melepas baris itu saja; Clear untuk melepas semua. Pilihan terpisah menjadi komentar per rentang. Satu komentar tetap di satu sisi, file, dan hunk.</p>
+      <div id="composer-home"><div id="composer" class="thread-wrap hidden"><form id="comment-form" class="thread editor"><strong id="comment-location" class="range-label"></strong><label class="sr-only" for="comment-text">Inline comment</label><textarea id="comment-text" class="textarea" required maxlength="20000" placeholder="Tulis komentar untuk rentang ini…"></textarea><div class="editor-actions"><button class="btn" id="cancel-comment" type="button">Cancel</button><button class="btn" type="submit">Add review comment</button></div></form></div></div>
+    </section>
+    <div id="empty" class="notice hidden">Tidak ada perubahan dalam comparison ini.</div>
+    <div id="submitted" class="notice hidden" role="status"></div>
+  </main>
+</div>
+<footer class="bottom"><span id="draft-status" class="muted" role="status" aria-live="polite">Memuat draft…</span><button class="btn finish" disabled>Finish your review</button></footer>
+<dialog id="review-dialog"><div class="dialog-head"><h2>Finish your review</h2><button class="btn" id="close-review">Close</button></div><form id="review-form"><div class="dialog-body"><p class="muted" id="summary-count"></p><label for="review-summary"><strong>Komentar umum</strong> <span class="muted">(opsional)</span></label><textarea id="review-summary" class="textarea" maxlength="50000" placeholder="Ringkasan feedback buat agent…"></textarea><label class="decision"><input type="radio" name="decision" value="comment" checked>Comment <span class="muted">— kirim feedback tanpa keputusan</span></label><label class="decision"><input type="radio" name="decision" value="approve">Approve <span class="muted">— perubahan sudah oke</span></label><label class="decision"><input type="radio" name="decision" value="request-changes">Request changes <span class="muted">— perlu direvisi</span></label><p class="muted small">Submit mengirim satu paket feedback untuk snapshot ini. Agent yang sedang menunggu bisa membacanya; kalau agent idle, lanjutkan lewat chat.</p><p id="submit-error" class="error-text" role="alert"></p></div><div class="dialog-foot"><button class="btn" id="cancel-review" type="button">Cancel</button><button class="btn submit" id="submit-review" type="submit">Submit review</button></div></form></dialog>
+</body></html>
