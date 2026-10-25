@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import time
 
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS = ROOT / '.superpowers/browser-navigation'
@@ -58,6 +59,7 @@ with tempfile.TemporaryDirectory(prefix='review-navigation-') as temp:
     (repo / '.env').write_text('SECRET=never-display-navigation\n')
     (repo / '<img src=x onerror=window.XSS=true>.txt').write_text('literal markup []\n')
     (repo / 'many.txt').write_text(''.join('batchmatch %d\n' % i for i in range(205)))
+    (repo / 'unicode.txt').write_text('İSTANBUL specialCase\n')
     (repo / 'binary.bin').write_bytes(b'\x00binarysentinel')
     (repo / 'large.txt').write_text('largesentinel' * 400000)
     try:
@@ -97,6 +99,8 @@ with tempfile.TemporaryDirectory(prefix='review-navigation-') as temp:
         check('document.querySelector("#lines").textContent.includes("Sensitive") && !document.querySelector(".search-result")', 'metadata-only path remains navigable')
         browser('fill', '#review-search', '[]')
         check('document.querySelectorAll(".file").length===5 && document.querySelectorAll(".search-result").length===5', 'literal punctuation and union deduplication')
+        browser('fill', '#review-search', 'i\u0307stanbul')
+        check('document.querySelectorAll(".search-result").length===1 && document.querySelector(".search-result mark").textContent==="İSTANBUL" && document.querySelector(".search-snippet").textContent==="İSTANBUL specialCase"', 'Unicode case expansion highlights original source without corruption')
         browser('fill', '#review-search', '<script>')
         check('document.querySelectorAll(".search-result").length===4 && !window.XSS && !document.querySelector("#search-results script")', 'search snippets are inert text')
         browser('click', '#clear-search')
@@ -136,6 +140,54 @@ with tempfile.TemporaryDirectory(prefix='review-navigation-') as temp:
             check('document.documentElement.scrollWidth<=innerWidth', 'search has no overflow at ' + str(width))
             browser('screenshot', '--full', str(ARTIFACTS / ('search-' + str(width) + '.png')))
         browser('set', 'viewport', '1440', '1000')
+        browser('click', '#clear-search')
+        browser('eval', 'document.querySelectorAll(".file").forEach(b=>{if(b.getAttribute("aria-label")===pathA)b.click()})')
+        browser('hover', '#review-search')
+        browser('eval', 'window.hintStart=0;window.hintElapsed=null;new MutationObserver(()=>{if(!document.querySelector("#file-path-hint").hidden)hintElapsed=performance.now()-hintStart}).observe(document.querySelector("#file-path-hint"),{attributes:true,attributeFilter:["hidden"]});document.querySelector(".file.active").addEventListener("mouseenter",()=>hintStart=performance.now());')
+        browser('hover', '.file.active')
+        check('document.querySelector("#file-path-hint").hidden', 'no immediate hover hint')
+        browser('wait', '--fn', '!document.querySelector("#file-path-hint").hidden')
+        check('hintElapsed>=990 && document.querySelector("#file-path-hint").textContent===pathA', 'truncated path hint delayed at least one second')
+        browser('screenshot', str(ARTIFACTS / 'tooltip-desktop.png'))
+        browser('press', 'Escape')
+        check('document.querySelector("#file-path-hint").hidden', 'Escape dismisses visible hint')
+        browser('fill', '#review-search', 'README.md')
+        browser('hover', '.file')
+        time.sleep(1.2)
+        check('document.querySelector("#file-path-hint").hidden', 'untruncated path has no hint')
+        browser('focus', '.file')
+        check('document.querySelector("#file-path-hint").hidden', 'untruncated keyboard focus has no hint')
+        browser('click', '#clear-search')
+        browser('hover', '.file.active')
+        browser('hover', '#review-search')
+        time.sleep(1.2)
+        check('document.querySelector("#file-path-hint").hidden', 'leaving cancels pending tooltip')
+        for action in ('escape', 'scroll', 'resize', 'redraw'):
+            browser('eval', 'document.querySelector(".file.active").dispatchEvent(new MouseEvent("mouseenter"))')
+            if action == 'escape':
+                browser('eval', 'document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape"}))')
+            elif action == 'redraw':
+                browser('fill', '#review-search', 'batchmatch')
+            else:
+                browser('eval', 'window.dispatchEvent(new Event(' + json.dumps(action) + '))')
+            time.sleep(1.2)
+            check('document.querySelector("#file-path-hint").hidden', action + ' cancels pending tooltip')
+            browser('click', '#clear-search')
+        browser('focus', '.file.active')
+        check('!document.querySelector("#file-path-hint").hidden', 'truncated keyboard focus shows immediately')
+        browser('set', 'viewport', '390', '844')
+        browser('focus', '#review-search')
+        browser('focus', '.file.active')
+        check('(()=>{const r=document.querySelector("#file-path-hint").getBoundingClientRect();return r.left>=0 && r.right<=innerWidth && r.top>=0 && r.bottom<=innerHeight && document.documentElement.scrollWidth<=innerWidth})()', 'tooltip fits mobile viewport')
+        browser('screenshot', '--full', str(ARTIFACTS / 'tooltip-mobile.png'))
+        browser('set', 'viewport', '1440', '1000')
+        browser('fill', '#review-search', 'batchmatch')
+        browser('focus', '.search-result')
+        browser('press', 'Enter')
+        check('document.querySelector("#filename").textContent==="many.txt"', 'keyboard activates search result')
+        browser('focus', '#clear-search')
+        browser('press', 'Enter')
+        check('document.querySelector("#review-search").value===""', 'keyboard clears unified search')
         browser('click', '.headline .finish')
         browser('click', '#submit-review')
         browser('wait', '--text', 'Review submitted:')

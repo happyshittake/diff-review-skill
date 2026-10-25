@@ -1,4 +1,20 @@
-# Verification — updated 2026-10-21
+# Verification — updated 2026-10-25
+
+## Filename-first navigation and unified search
+
+Implemented the approved filename-first sidebar, one path/code query, literal case-insensitive matches against old/new paths and captured added/removed/context lines, exact hunk/row jumps, and 100-result batches with Show more. Search is ephemeral and never requests source or writes feedback. Typing/clearing updates only navigation, results and source marks, preserving row/composer identity, selection and unsaved text. Cross-file navigation keeps the existing discard confirmation; same-file jumps preserve the editor.
+
+Truncated filename/directory labels reveal a full-path hint after 1000ms hover, immediately on keyboard focus; fully visible labels have no hint. Escape, exit, redraw, scroll and resize cancel pending hints. The selected file header keeps the full path for touch users.
+
+- `python3 tests/browser_navigation.py`: 46 real-browser checks pass, including duplicate/long names, root paths, renames, metadata-only sensitive/binary/large exclusions, literal markup and Unicode lowercase expansion, 205-result pagination, composer/draft/selection preservation, cancelled/accepted exact result jumps, read-only submitted state, empty snapshots, delayed/cancelled hints and keyboard activation.
+- `python3 tests/browser_smoke.py`: existing click/range/composer/reload/submission smoke passes. Added search height exposed a footer overlap of the comment button; opening/editing a composer now scrolls it above the fixed footer, without changing click-to-select layout stability.
+- `python3 -m unittest discover -s tests -v`: 18 tests pass. `node --check assets/app.js` and `git diff --check` pass.
+- 1440×1000 and 390×1000 navigation/search captures, plus 390×844 tooltip bounds, checked. No document overflow. Screenshots inspected; code retains local horizontal scrolling.
+- Detector findings are existing vendor gradient/stripe selectors and the incumbent modal shadow advisory, not new rendered gradients.
+- Browser automation note: a repeated native Escape in the pending-timer loop caused agent-browser to lose its page; that cancellation case dispatches the same keydown in-page. Visible-tooltip Escape still uses a real keyboard press. Negative timing assertions wait beyond the one-second threshold; appearance uses a bounded condition wait.
+
+No new runtime dependencies, server routes, capture policy or feedback schema changes. No cross-browser suite, public tunnel, push or deployment performed.
+
 
 ## Submitted user review: round 1
 

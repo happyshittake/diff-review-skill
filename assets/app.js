@@ -163,22 +163,26 @@ function highlightText(node, text, query) {
   const needle = query.toLowerCase();
   if (!needle) { node.textContent = text; return; }
   const lower = text.toLowerCase();
-  // Locate against original characters too: Unicode lowercasing can change string length.
-  let offset = 0;
-  while (offset < text.length) {
-    let end = offset + 1;
-    const point = text.codePointAt(offset);
-    if (point > 0xffff) end++;
-    const lowered = text.slice(offset, end).toLowerCase();
-    if (lowered.length !== end - offset) { node.textContent = text; return; }
-    offset = end;
+  // Map expanded lowercase characters (e.g. İ) back to untouched source offsets.
+  const starts = [], ends = [];
+  if (lower.length !== text.length) {
+    let offset = 0;
+    for (const character of text) {
+      for (let i = 0; i < character.toLowerCase().length; i++) { starts.push(offset); ends.push(offset + character.length); }
+      offset += character.length;
+    }
   }
-  let start = 0, position;
-  while ((position = lower.indexOf(needle, start)) !== -1) {
-    node.append(document.createTextNode(text.slice(start, position)), el('mark', '', text.slice(position, position + needle.length)));
-    start = position + needle.length;
+  let searchStart = 0, sourceStart = 0, position;
+  while ((position = lower.indexOf(needle, searchStart)) !== -1) {
+    const start = starts[position] ?? position;
+    const end = ends[position + needle.length - 1] ?? position + needle.length;
+    if (start >= sourceStart) {
+      node.append(document.createTextNode(text.slice(sourceStart, start)), el('mark', '', text.slice(start, end)));
+      sourceStart = end;
+    }
+    searchStart = position + needle.length;
   }
-  node.append(document.createTextNode(text.slice(start)));
+  node.append(document.createTextNode(text.slice(sourceStart)));
 }
 function highlightSources() {
   const file = snapshot.files[current], query = $('#review-search').value;
@@ -190,6 +194,7 @@ function highlightSources() {
   });
 }
 function navigateToMatch(match) {
+  hidePathHint();
   if (match.fileIndex !== current) {
     if (!abandonEditor()) return;
     current = match.fileIndex; renderFile();
@@ -225,7 +230,32 @@ function renderSearch() {
   renderFiles(); renderSearchResults(); highlightSources();
   $('#search-status').textContent = $('#review-search').value ? searchState.fileIndexes.size + ' of ' + snapshot.files.length + ' files · ' + searchState.matches.length + ' matching lines · Only captured text is searched.' : '';
 }
+let pathHintTimer, pathHintAnchor;
+function hidePathHint() {
+  clearTimeout(pathHintTimer);
+  $('#file-path-hint').hidden = true;
+  pathHintAnchor?.removeAttribute('aria-describedby');
+  pathHintAnchor = null;
+}
+function attachPathHint(button, fullPath) {
+  const truncated = () => [...button.querySelectorAll('.file-name,.file-directory')].some(node => node.scrollWidth > node.clientWidth);
+  const show = () => {
+    if (!button.isConnected || !truncated()) return;
+    const hint = $('#file-path-hint'), rect = button.getBoundingClientRect();
+    pathHintAnchor = button; button.setAttribute('aria-describedby', hint.id);
+    hint.textContent = fullPath; hint.hidden = false;
+    hint.style.left = Math.max(8, Math.min(rect.left, innerWidth - hint.offsetWidth - 8)) + 'px';
+    hint.style.top = Math.max(8, Math.min(rect.bottom + 6, innerHeight - hint.offsetHeight - 8)) + 'px';
+  };
+  button.onmouseenter = () => { hidePathHint(); if (truncated()) pathHintTimer = setTimeout(show, 1000); };
+  button.onfocus = () => { hidePathHint(); show(); };
+  button.onmouseleave = button.onblur = hidePathHint;
+}
+document.addEventListener('keydown', event => { if (event.key === 'Escape') hidePathHint(); });
+window.addEventListener('scroll', hidePathHint, true);
+window.addEventListener('resize', hidePathHint);
 function renderFiles() {
+  hidePathHint();
   $('#files').replaceChildren();
   const matches = $('#review-search').value ? searchState.fileIndexes : new Set(snapshot.files.map((_, i) => i));
   $('#file-count').textContent = matches.size + ' / ' + snapshot.files.length;
@@ -240,6 +270,7 @@ function renderFiles() {
     const label = fileLabel(item.path), identity = el('span', 'file-identity');
     identity.append(el('span', 'file-name', label.name), el('span', 'file-directory', label.directory));
     button.append(identity, el('span', 'change', draft.viewed.includes(item.path) ? '✓ ' + item.status : item.status));
+    attachPathHint(button, item.path);
     button.onclick = () => { if (abandonEditor()) { current = index; renderFile(); } };
     $('#files').append(button);
   });

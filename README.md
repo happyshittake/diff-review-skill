@@ -28,6 +28,8 @@ Other Agent Skills-compatible agents can install this folder in their skill sear
 - Combined staged + unstaged + untracked changes, PR-style branch merge-base comparisons, exact commit comparisons.
 - One overall explanation authored by the invoking agent, not an external LLM service; no per-file summary workload.
 - Always-on click-to-select ranges: click a row/number, then the last row, then Comment on selection. Click an already-selected line again to unselect only that line. Interior gaps create separate contiguous comment ranges. The toolbar reserves its space so selection doesn't move the code. Old/new sides remain separate.
+- Filename-first file list with directory context; truncated names/paths show a full-path hint after one second of hover (immediately on keyboard focus).
+- One **Search files and changes** field matches filenames, old/new paths and captured diff text, including removed/context lines. Results jump to exact lines without changing the query; typing preserves your selection and unsaved composer. Search excludes unavailable contents and is literal, case-insensitive, and local; Show more matches reveals subsequent batches.
 - Comment editor directly beneath the selected line/range, including edit; saved drafts, Viewed checklist, general feedback and Comment/Approve/Request changes.
 - **Submit review** saves an atomic JSON packet with line ranges and code context for the agent to read.
 - Localhost by default. User-requested HTTPS tunnels supported with explicit allowed origin; skill chooses from available tools rather than prescribing a provider.
@@ -63,6 +65,7 @@ python3 -m unittest discover -s tests -v
 node --check assets/app.js  # optional development syntax check; Node is not needed at runtime
 python3 tests/demo.py      # starts a disposable real-Git demo; returns URL/session/repo
 python3 tests/browser_smoke.py  # requires agent-browser; real click + reload + submit test
+python3 tests/browser_navigation.py  # search, state preservation, long paths and delayed hints
 ```
 
 The UI uses bundled daisyUI **5.7.1** CSS (MIT; `assets/vendor-LICENSE.txt`) plus the project's stylesheet. No build step is needed.
