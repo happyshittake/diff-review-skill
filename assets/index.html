@@ -13,11 +13,13 @@
   <div class="toolbar"><span id="comparison"></span><code id="base"></code><span>→</span><code id="head"></code><span class="snapshot" id="snapshot-label"></span></div>
   <details class="agent-summary" open><summary>Summary of changes <span class="agent-byline">Penjelasan agent</span></summary><div id="overall-summary" class="prose-text"></div></details>
 </section>
+<section class="review-search" aria-label="Review search"><div class="search-controls"><label for="review-search">Search files and changes<input class="input" id="review-search" type="search" placeholder="Filename, directory, or code…" aria-describedby="search-help" disabled></label><button class="btn" id="clear-search" disabled>Clear search</button></div><p id="search-help" class="small">One query · Matching files in the sidebar, matching captured lines in the results · Case-insensitive literal text</p><p id="search-status" class="small" role="status" aria-live="polite"></p></section>
 <div class="layout">
   <aside><div class="side-title"><span>Changed files</span><span id="file-count">0</span></div><nav id="files" aria-label="Changed files"></nav><p class="aside-note">Klik baris awal lalu klik baris akhir. Klik ulang untuk melepas baris itu saja. Tanpa Shift atau mode tambahan.<br><br>Draft belum dikirim ke agent sampai lo klik <strong>Submit review</strong>.</p></aside>
   <main id="workspace">
     <div id="error" role="alert" class="notice error hidden"></div>
     <div id="loading" class="notice">Memuat snapshot…</div>
+    <section id="search-results" aria-label="Matching diff lines" class="search-results hidden"></section>
     <section id="file-view" class="hidden">
       <div class="diff-tools"><span id="file-position"></span><span class="stats" id="stats"></span></div>
       <section class="code-diff"><div class="diff-title"><strong id="filename"></strong><label class="viewed"><input type="checkbox" id="viewed">Viewed</label></div>

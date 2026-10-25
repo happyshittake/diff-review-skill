@@ -8,6 +8,7 @@ function el(tag, className = '', text) {
 }
 let snapshot, draft, submitted = null, current = 0, selection = null, editing = null;
 let saveTimer, saveChain = Promise.resolve(), revision = 0, dirty = false, submitting = false;
+let searchState = {fileIndexes: new Set(), matches: []}, visibleMatches = 100;
 const composer = $('#composer');
 const dialog = $('#review-dialog');
 const labels = {worktree: 'Uncommitted changes', branches: 'Branches · merge-base → target', commits: 'Commits · exact trees'};
@@ -110,6 +111,7 @@ function commentRange() {
   document.querySelector('.range-end').after(composer);
   composer.classList.remove('hidden');
   $('#comment-text').focus();
+  composer.scrollIntoView({block: 'nearest'});
 }
 function renderComment(comment, index, row) {
   const wrap = el('div', 'thread-wrap');
@@ -127,6 +129,7 @@ function renderComment(comment, index, row) {
       row.after(composer);
       composer.classList.remove('hidden');
       $('#comment-text').focus();
+      composer.scrollIntoView({block: 'nearest'});
     };
     const remove = el('button', 'btn', 'Remove');
     remove.type = 'button';
@@ -141,9 +144,94 @@ function fileLabel(path) {
   const slash = path.lastIndexOf('/');
   return {name: path.slice(slash + 1), directory: slash < 0 ? 'Repository root' : path.slice(0, slash)};
 }
+function searchSnapshot(query) {
+  const needle = query.toLowerCase(), fileIndexes = new Set(), matches = [];
+  snapshot.files.forEach((file, fileIndex) => {
+    if (!needle || [file.path, file.old_path || ''].some(path => path.toLowerCase().includes(needle))) fileIndexes.add(fileIndex);
+    if (!needle) return;
+    file.hunks.forEach((hunk, hunkIndex) => hunk.lines.forEach((line, lineIndex) => {
+      if (!line.text.toLowerCase().includes(needle)) return;
+      const side = line.type === '-' ? 'old' : 'new';
+      fileIndexes.add(fileIndex);
+      matches.push({fileIndex, hunkIndex, lineIndex, side, number: line[side]});
+    }));
+  });
+  return {fileIndexes, matches};
+}
+function highlightText(node, text, query) {
+  node.replaceChildren();
+  const needle = query.toLowerCase();
+  if (!needle) { node.textContent = text; return; }
+  const lower = text.toLowerCase();
+  // Locate against original characters too: Unicode lowercasing can change string length.
+  let offset = 0;
+  while (offset < text.length) {
+    let end = offset + 1;
+    const point = text.codePointAt(offset);
+    if (point > 0xffff) end++;
+    const lowered = text.slice(offset, end).toLowerCase();
+    if (lowered.length !== end - offset) { node.textContent = text; return; }
+    offset = end;
+  }
+  let start = 0, position;
+  while ((position = lower.indexOf(needle, start)) !== -1) {
+    node.append(document.createTextNode(text.slice(start, position)), el('mark', '', text.slice(position, position + needle.length)));
+    start = position + needle.length;
+  }
+  node.append(document.createTextNode(text.slice(start)));
+}
+function highlightSources() {
+  const file = snapshot.files[current], query = $('#review-search').value;
+  if (!file) return;
+  document.querySelectorAll('#lines .row').forEach(row => {
+    const line = file.hunks[Number(row.dataset.hunk)].lines[Number(row.dataset.line)];
+    highlightText(row.querySelector('.source'), line.text, query);
+    row.classList.remove('search-destination');
+  });
+}
+function navigateToMatch(match) {
+  if (match.fileIndex !== current) {
+    if (!abandonEditor()) return;
+    current = match.fileIndex; renderFile();
+  }
+  document.querySelectorAll('.search-destination').forEach(row => row.classList.remove('search-destination'));
+  const row = document.querySelector('.row[data-hunk="' + match.hunkIndex + '"][data-line="' + match.lineIndex + '"]');
+  if (!row) return;
+  row.classList.add('search-destination'); row.tabIndex = -1;
+  row.focus({preventScroll: true}); row.scrollIntoView({block: 'center'});
+}
+function renderSearchResults() {
+  const box = $('#search-results'), query = $('#review-search').value;
+  box.replaceChildren(); box.classList.toggle('hidden', !query);
+  if (!query) return;
+  const matches = searchState.matches;
+  if (!matches.length) box.append(el('p', 'notice', searchState.fileIndexes.size ? 'Files match by path, but no captured code lines match.' : 'No files or captured code match. Try another term or clear search.'));
+  matches.slice(0, visibleMatches).forEach(match => {
+    const file = snapshot.files[match.fileIndex], label = fileLabel(file.path);
+    const button = el('button', 'search-result'); button.type = 'button'; button.dataset.file = match.fileIndex;
+    button.append(el('strong', '', label.name + ' · ' + match.side + ' line ' + match.number), el('span', 'result-directory', label.directory));
+    const snippet = el('code', 'search-snippet');
+    highlightText(snippet, file.hunks[match.hunkIndex].lines[match.lineIndex].text, query);
+    button.append(snippet); button.onclick = () => navigateToMatch(match); box.append(button);
+  });
+  if (matches.length > visibleMatches) {
+    const more = el('button', 'btn', 'Show more matches'); more.id = 'more-matches'; more.type = 'button';
+    more.onclick = () => { visibleMatches += 100; renderSearchResults(); $('#search-results .search-result:nth-child(' + (visibleMatches - 99) + ')')?.focus(); };
+    box.append(more);
+  }
+}
+function renderSearch() {
+  visibleMatches = 100; searchState = searchSnapshot($('#review-search').value);
+  renderFiles(); renderSearchResults(); highlightSources();
+  $('#search-status').textContent = $('#review-search').value ? searchState.fileIndexes.size + ' of ' + snapshot.files.length + ' files · ' + searchState.matches.length + ' matching lines · Only captured text is searched.' : '';
+}
 function renderFiles() {
   $('#files').replaceChildren();
+  const matches = $('#review-search').value ? searchState.fileIndexes : new Set(snapshot.files.map((_, i) => i));
+  $('#file-count').textContent = matches.size + ' / ' + snapshot.files.length;
+  if (!matches.size && snapshot.files.length) $('#files').append(el('p', 'small', 'No matching files. Clear search to see all files.'));
   snapshot.files.forEach((item, index) => {
+    if (!matches.has(index)) return;
     const button = el('button', 'file' + (index === current ? ' active' : ''));
     button.type = 'button';
     button.dataset.file = index;
@@ -174,9 +262,9 @@ function renderFile() {
   if (!file.hunks.length) $('#lines').append(el('p', 'notice', file.note || 'Metadata-only change'));
   file.hunks.forEach((hunk, hi) => {
     $('#lines').append(el('div', 'hunk', hunk.header));
-    hunk.lines.forEach(line => {
+    hunk.lines.forEach((line, li) => {
       const row = el('div', 'row' + (line.type === '+' ? ' add' : line.type === '-' ? ' del' : ''));
-      row.dataset.old = line.old ?? ''; row.dataset.new = line.new ?? ''; row.dataset.hunk = hi;
+      row.dataset.old = line.old ?? ''; row.dataset.new = line.new ?? ''; row.dataset.hunk = hi; row.dataset.line = li;
       for (const side of ['old', 'new']) {
         const value = line[side];
         const cell = el(value === null ? 'span' : 'button', 'num', value ?? '');
@@ -205,7 +293,10 @@ function renderFile() {
       });
     });
   });
+  highlightSources();
 }
+$('#review-search').oninput = renderSearch;
+$('#clear-search').onclick = () => { $('#review-search').value = ''; renderSearch(); $('#review-search').focus(); };
 function showSubmitted() {
   $('#submitted').classList.remove('hidden');
   $('#submitted').textContent = 'Review submitted: ' + submitted.decision + ' · ' + submitted.comments.length + ' komentar. Feedback tersimpan untuk agent. Untuk revisi selanjutnya, agent membuat snapshot baru.';
@@ -293,6 +384,7 @@ window.addEventListener('beforeunload', event => {
     document.querySelectorAll('input[name="decision"]').forEach(input => input.checked = input.value === draft.decision);
     $('#loading').classList.add('hidden');
     document.querySelectorAll('.finish').forEach(button => button.disabled = false);
-    renderFile(); count(); if (submitted) showSubmitted();
+    $('#review-search').disabled = $('#clear-search').disabled = false;
+    renderSearch(); renderFile(); count(); if (submitted) showSubmitted();
   } catch (error) { $('#loading').classList.add('hidden'); showError('Gagal memuat review: ' + error.message + '. Buka ulang URL lengkap dari agent.'); }
 })();
