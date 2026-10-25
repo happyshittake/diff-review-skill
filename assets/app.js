@@ -204,6 +204,7 @@ function navigateToMatch(match) {
   if (!row) return;
   row.classList.add('search-destination'); row.tabIndex = -1;
   row.focus({preventScroll: true}); row.scrollIntoView({block: 'center'});
+  row.querySelector('mark')?.scrollIntoView({block: 'nearest', inline: 'nearest'});
 }
 function renderSearchResults() {
   const box = $('#search-results'), query = $('#review-search').value;
@@ -265,7 +266,7 @@ function renderFiles() {
     const button = el('button', 'file' + (index === current ? ' active' : ''));
     button.type = 'button';
     button.dataset.file = index;
-    button.setAttribute('aria-label', item.path);
+    button.setAttribute('aria-label', item.path + ' · ' + item.status + (draft.viewed.includes(item.path) ? ' · Viewed' : ' · Not viewed'));
     if (index === current) button.setAttribute('aria-current', 'true');
     const label = fileLabel(item.path), identity = el('span', 'file-identity');
     identity.append(el('span', 'file-name', label.name), el('span', 'file-directory', label.directory));
