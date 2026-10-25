@@ -137,20 +137,31 @@ function renderComment(comment, index, row) {
   wrap.append(thread);
   return wrap;
 }
-function renderFile() {
-  $('#composer-home').append(composer);
-  composer.classList.add('hidden');
-  clearRange();
-  const file = snapshot.files[current];
+function fileLabel(path) {
+  const slash = path.lastIndexOf('/');
+  return {name: path.slice(slash + 1), directory: slash < 0 ? 'Repository root' : path.slice(0, slash)};
+}
+function renderFiles() {
   $('#files').replaceChildren();
   snapshot.files.forEach((item, index) => {
     const button = el('button', 'file' + (index === current ? ' active' : ''));
     button.type = 'button';
     button.dataset.file = index;
-    button.append(el('span', '', item.path), el('span', 'change', draft.viewed.includes(item.path) ? '✓ ' + item.status : item.status));
+    button.setAttribute('aria-label', item.path);
+    if (index === current) button.setAttribute('aria-current', 'true');
+    const label = fileLabel(item.path), identity = el('span', 'file-identity');
+    identity.append(el('span', 'file-name', label.name), el('span', 'file-directory', label.directory));
+    button.append(identity, el('span', 'change', draft.viewed.includes(item.path) ? '✓ ' + item.status : item.status));
     button.onclick = () => { if (abandonEditor()) { current = index; renderFile(); } };
     $('#files').append(button);
   });
+}
+function renderFile() {
+  $('#composer-home').append(composer);
+  composer.classList.add('hidden');
+  clearRange();
+  const file = snapshot.files[current];
+  renderFiles();
   $('#file-view').classList.toggle('hidden', !file);
   $('#empty').classList.toggle('hidden', !!file);
   if (!file) return;
@@ -227,7 +238,7 @@ $('#comment-form').onsubmit = event => {
 $('#viewed').onchange = () => {
   const path = snapshot.files[current].path;
   draft.viewed = $('#viewed').checked ? [...new Set([...draft.viewed, path])] : draft.viewed.filter(p => p !== path);
-  changed();
+  changed(); renderFiles();
 };
 document.querySelectorAll('.finish').forEach(button => button.onclick = finish);
 $('#close-review').onclick = $('#cancel-review').onclick = () => dialog.close();
